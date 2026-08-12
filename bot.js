@@ -9,6 +9,7 @@ const fs = require('fs');
 const chalk = require('chalk');
 const express = require('express');
 const path = require('path');
+const pino = require('pino'); // ✅ ADD THIS!
 
 // ==========================================
 // 🧹 SILENCE BAILESY LOGS - LIKE V1
@@ -121,7 +122,7 @@ async function startBot() {
         markOnlineOnConnect: false,
         syncFullHistory: false,
         downloadHistory: false,
-        logger: pino({ level: 'silent' }), // ✅ THIS SILENCES LOGS!
+        logger: pino({ level: 'silent' }), // ✅ NOW pino IS DEFINED!
     });
 
     sock.ev.on('creds.update', saveCreds);
