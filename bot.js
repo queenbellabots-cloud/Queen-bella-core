@@ -1,6 +1,6 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
- * 🔒 ALL YOUR HIDDEN CODE HERE!
+ * 🔒 ALWAYS SHOWS PAIRING CODE ON FIRST RUN
  */
 
 const config = require('./config.js');
@@ -82,13 +82,23 @@ async function startBot() {
         fs.mkdirSync(sessionFolder, { recursive: true });
     }
 
+    // ✅ DELETE OLD SESSION TO FORCE PAIRING CODE
     const credsPath = path.join(sessionFolder, 'creds.json');
     let hasSession = fs.existsSync(credsPath);
 
     if (hasSession) {
-        console.log(chalk.green('✅ Session found! Bot will connect automatically.'));
-    } else {
-        console.log(chalk.yellow('📱 No session found. Will generate pairing code.'));
+        console.log(chalk.yellow('📱 Session found! Deleting to generate new pairing code...'));
+        try {
+            fs.unlinkSync(credsPath);
+            console.log(chalk.green('✅ Old session deleted!'));
+            hasSession = false;
+        } catch (e) {
+            console.log(chalk.red('❌ Could not delete session:'), e.message);
+        }
+    }
+
+    if (!hasSession) {
+        console.log(chalk.yellow('📱 Generating new pairing code...'));
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
@@ -104,52 +114,53 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // ✅ FIXED: Generate pairing code on connection open
+    // ✅ GENERATE PAIRING CODE
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
 
         if (connection === 'open') {
             console.log(chalk.green('✅ Connected to WhatsApp!'));
 
-            // ✅ GENERATE PAIRING CODE IF NO SESSION
-            if (!hasSession) {
-                try {
-                    const phoneNumber = config.ownerNumber || '254755660053';
-                    console.log(chalk.yellow(`📱 Using phone number: ${phoneNumber}`));
-                    console.log(chalk.yellow(`⏳ Requesting pairing code...`));
+            // ✅ ALWAYS GENERATE PAIRING CODE
+            try {
+                const phoneNumber = config.ownerNumber || '254755660053';
+                console.log(chalk.yellow(`📱 Using phone number: ${phoneNumber}`));
+                console.log(chalk.yellow(`⏳ Requesting pairing code...`));
 
-                    const code = await sock.requestPairingCode(phoneNumber);
-                    const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+                const code = await sock.requestPairingCode(phoneNumber);
+                const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
-                    console.log('');
-                    console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(formattedCode)));
-                    console.log('');
-                    console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
-                    console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
-                    console.log('');
-                    console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
-                    console.log('');
+                console.log('');
+                console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(formattedCode)));
+                console.log('');
+                console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
+                console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
+                console.log('');
+                console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
+                console.log('');
 
-                    // ✅ Save session after pairing
-                    hasSession = true;
+                // ✅ SAVE SESSION AFTER PAIRING
+                hasSession = true;
 
-                } catch (error) {
-                    console.log(chalk.red('❌ Error getting pairing code:'), error.message);
-                }
-            } else {
-                console.log(chalk.green(`
+            } catch (error) {
+                console.log(chalk.red('❌ Error getting pairing code:'), error.message);
+            }
+        }
+
+        // ✅ BOT CONNECTED
+        if (connection === 'open' && hasSession) {
+            console.log(chalk.green(`
 ╔═══════════════════════════════════════╗
 ║   ✅ BOT IS ONLINE!                  ║
 ║   👑 ${config.botName}                ║
 ║   📱 Connected as: ${sock.user.id}    ║
 ╚═══════════════════════════════════════╝
-                `));
-                
-                // Send welcome message to owner
-                try {
-                    const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                    await sock.sendMessage(botNumber, {
-                        text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+            `));
+            
+            try {
+                const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                await sock.sendMessage(botNumber, {
+                    text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃   👑 QUEEN BELLA MD V3           ┃
 ┃   Created by Dev RODGERS         ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -169,11 +180,10 @@ async function startBot() {
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 ${config.footer}`
-                    });
-                    console.log(chalk.green('✅ Welcome message sent!'));
-                } catch (e) {
-                    console.log('Could not send welcome message:', e.message);
-                }
+                });
+                console.log(chalk.green('✅ Welcome message sent!'));
+            } catch (e) {
+                console.log('Could not send welcome message:', e.message);
             }
         }
 
