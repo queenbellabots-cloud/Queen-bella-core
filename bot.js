@@ -1,6 +1,6 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
- * 🔒 CLEAN OUTPUT - NO DEBUG LOGS
+ * 🔒 PAIRING CODE WITH RETRY LOGIC
  */
 
 const config = require('./config.js');
@@ -9,36 +9,7 @@ const fs = require('fs');
 const chalk = require('chalk');
 const express = require('express');
 const path = require('path');
-const pino = require('pino'); // ✅ ADD THIS!
-
-// ==========================================
-// 🧹 SILENCE BAILESY LOGS - LIKE V1
-// ==========================================
-
-// Store original console.log
-const originalLog = console.log;
-
-// Filter out Baileys noise
-console.log = function() {
-    const args = Array.from(arguments);
-    const message = args.join(' ');
-    
-    // Skip Baileys debug logs
-    if (message.includes('{"level":30,"time"') || 
-        message.includes('{"level":') ||
-        message.includes('"class":"baileys"') ||
-        message.includes('"helloMsg"') ||
-        message.includes('"userAgent"') ||
-        message.includes('"webInfo"') ||
-        message.includes('"devicePairingData"') ||
-        message.includes('"connectType"') ||
-        message.includes('"pull":false') ||
-        message.includes('"msg":"not logged in"')) {
-        return;
-    }
-    
-    originalLog.apply(console, arguments);
-};
+const pino = require('pino');
 
 // ==========================================
 // GLOBAL VARIABLES
@@ -112,9 +83,18 @@ async function startBot() {
         fs.mkdirSync(sessionFolder, { recursive: true });
     }
 
+    // ✅ DELETE OLD SESSION TO FORCE PAIRING
+    const credsPath = path.join(sessionFolder, 'creds.json');
+    if (fs.existsSync(credsPath)) {
+        console.log(chalk.yellow('📱 Deleting old session...'));
+        try {
+            fs.unlinkSync(credsPath);
+            console.log(chalk.green('✅ Old session deleted!'));
+        } catch (e) {}
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
 
-    // ✅ SILENT LOGGER - NO DEBUG
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
@@ -122,16 +102,22 @@ async function startBot() {
         markOnlineOnConnect: false,
         syncFullHistory: false,
         downloadHistory: false,
-        logger: pino({ level: 'silent' }), // ✅ NOW pino IS DEFINED!
+        logger: pino({ level: 'silent' }),
+        // ✅ RETRY ON FAILURE
+        defaultQueryTimeoutMs: 60000,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000,
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     // ==========================================
-    // ✅ PAIRING CODE GENERATION - CLEAN LIKE V1
+    // ✅ PAIRING CODE GENERATION - WITH RETRY
     // ==========================================
 
     let pairingDone = false;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
 
     sock.ev.on('connection.update', async (s) => {
         const { connection, lastDisconnect, qr } = s;
@@ -145,10 +131,12 @@ async function startBot() {
                 console.log(chalk.green(`📱 Using phone number: ${phoneNumber}`));
                 console.log(chalk.yellow(`⏳ Requesting pairing code...`));
 
-                setTimeout(async () => {
+                // ✅ RETRY LOGIC - TRY 3 TIMES
+                const requestPairing = async (attempt) => {
                     try {
                         let code = await sock.requestPairingCode(phoneNumber);
                         code = code?.match(/.{1,4}/g)?.join("-") || code;
+                        
                         console.log(``);
                         console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(code)));
                         console.log(``);
@@ -157,10 +145,32 @@ async function startBot() {
                         console.log(``);
                         console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
                         console.log(``);
+                        
+                        // ✅ WAIT FOR USER TO ENTER CODE
+                        console.log(chalk.yellow(`⏳ Waiting for you to enter the code in WhatsApp...`));
+                        console.log(chalk.yellow(`📌 If it doesn't work, wait 5 minutes and restart the bot.`));
+                        console.log(``);
+                        
                     } catch (error) {
-                        console.error(chalk.red('❌ Error getting pairing code:'), error);
+                        console.log(chalk.red(`❌ Attempt ${attempt} failed: ${error.message}`));
+                        
+                        if (attempt < 3) {
+                            console.log(chalk.yellow(`🔄 Retrying in 10 seconds... (Attempt ${attempt + 1}/${MAX_RETRIES})`));
+                            setTimeout(() => requestPairing(attempt + 1), 10000);
+                        } else {
+                            console.log(chalk.red(`
+╔═══════════════════════════════════════╗
+║   ❌ PAIRING FAILED                  ║
+║   Please wait 5 minutes and restart  ║
+║   Or try using a different number    ║
+╚═══════════════════════════════════════╝
+                            `));
+                        }
                     }
-                }, 5000);
+                };
+
+                // ✅ START PAIRING WITH RETRY
+                setTimeout(() => requestPairing(1), 5000);
             }
         }
 
