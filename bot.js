@@ -1,6 +1,6 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
- * 🔒 USING V1'S WORKING PAIRING METHOD
+ * 🔒 CLEAN OUTPUT - NO DEBUG LOGS
  */
 
 const config = require('./config.js');
@@ -9,6 +9,35 @@ const fs = require('fs');
 const chalk = require('chalk');
 const express = require('express');
 const path = require('path');
+
+// ==========================================
+// 🧹 SILENCE BAILESY LOGS - LIKE V1
+// ==========================================
+
+// Store original console.log
+const originalLog = console.log;
+
+// Filter out Baileys noise
+console.log = function() {
+    const args = Array.from(arguments);
+    const message = args.join(' ');
+    
+    // Skip Baileys debug logs
+    if (message.includes('{"level":30,"time"') || 
+        message.includes('{"level":') ||
+        message.includes('"class":"baileys"') ||
+        message.includes('"helloMsg"') ||
+        message.includes('"userAgent"') ||
+        message.includes('"webInfo"') ||
+        message.includes('"devicePairingData"') ||
+        message.includes('"connectType"') ||
+        message.includes('"pull":false') ||
+        message.includes('"msg":"not logged in"')) {
+        return;
+    }
+    
+    originalLog.apply(console, arguments);
+};
 
 // ==========================================
 // GLOBAL VARIABLES
@@ -84,6 +113,7 @@ async function startBot() {
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
 
+    // ✅ SILENT LOGGER - NO DEBUG
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
@@ -91,12 +121,13 @@ async function startBot() {
         markOnlineOnConnect: false,
         syncFullHistory: false,
         downloadHistory: false,
+        logger: pino({ level: 'silent' }), // ✅ THIS SILENCES LOGS!
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     // ==========================================
-    // ✅ PAIRING CODE GENERATION - V1 METHOD
+    // ✅ PAIRING CODE GENERATION - CLEAN LIKE V1
     // ==========================================
 
     let pairingDone = false;
@@ -104,7 +135,6 @@ async function startBot() {
     sock.ev.on('connection.update', async (s) => {
         const { connection, lastDisconnect, qr } = s;
 
-        // ✅ GENERATE PAIRING CODE - EXACTLY LIKE V1
         if (!sock.authState.creds.registered && !pairingDone) {
             if (connection === 'connecting' || connection === 'open') {
                 pairingDone = true;
@@ -133,7 +163,6 @@ async function startBot() {
             }
         }
 
-        // ✅ BOT ONLINE
         if (connection === 'open' && sock.authState.creds.registered) {
             console.log(chalk.green(`
 ╔═══════════════════════════════════════╗
@@ -205,7 +234,6 @@ ${config.footer}`
             if (!mek || !mek.message) return;
 
             const chatId = mek.key.remoteJid;
-
             const isStatus = chatId === 'status@broadcast';
             const isChannel = chatId.includes('@newsletter');
             if (isStatus || isChannel) return;
