@@ -1,6 +1,6 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
- * 🔒 ALWAYS SHOWS PAIRING CODE ON FIRST RUN
+ * 🔒 USING V1'S WORKING PAIRING METHOD
  */
 
 const config = require('./config.js');
@@ -82,25 +82,6 @@ async function startBot() {
         fs.mkdirSync(sessionFolder, { recursive: true });
     }
 
-    // ✅ DELETE OLD SESSION TO FORCE PAIRING CODE
-    const credsPath = path.join(sessionFolder, 'creds.json');
-    let hasSession = fs.existsSync(credsPath);
-
-    if (hasSession) {
-        console.log(chalk.yellow('📱 Session found! Deleting to generate new pairing code...'));
-        try {
-            fs.unlinkSync(credsPath);
-            console.log(chalk.green('✅ Old session deleted!'));
-            hasSession = false;
-        } catch (e) {
-            console.log(chalk.red('❌ Could not delete session:'), e.message);
-        }
-    }
-
-    if (!hasSession) {
-        console.log(chalk.yellow('📱 Generating new pairing code...'));
-    }
-
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
 
     const sock = makeWASocket({
@@ -114,41 +95,46 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // ✅ GENERATE PAIRING CODE
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update;
+    // ==========================================
+    // ✅ PAIRING CODE GENERATION - V1 METHOD
+    // ==========================================
 
-        if (connection === 'open') {
-            console.log(chalk.green('✅ Connected to WhatsApp!'));
+    let pairingDone = false;
 
-            // ✅ ALWAYS GENERATE PAIRING CODE
-            try {
-                const phoneNumber = config.ownerNumber || '254755660053';
-                console.log(chalk.yellow(`📱 Using phone number: ${phoneNumber}`));
+    sock.ev.on('connection.update', async (s) => {
+        const { connection, lastDisconnect, qr } = s;
+
+        // ✅ GENERATE PAIRING CODE - EXACTLY LIKE V1
+        if (!sock.authState.creds.registered && !pairingDone) {
+            if (connection === 'connecting' || connection === 'open') {
+                pairingDone = true;
+                let phoneNumber = config.ownerNumber || '254755660053';
+                phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
+
+                console.log(chalk.green(`📱 Using phone number: ${phoneNumber}`));
                 console.log(chalk.yellow(`⏳ Requesting pairing code...`));
 
-                const code = await sock.requestPairingCode(phoneNumber);
-                const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
-
-                console.log('');
-                console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(formattedCode)));
-                console.log('');
-                console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
-                console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
-                console.log('');
-                console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
-                console.log('');
-
-                // ✅ SAVE SESSION AFTER PAIRING
-                hasSession = true;
-
-            } catch (error) {
-                console.log(chalk.red('❌ Error getting pairing code:'), error.message);
+                setTimeout(async () => {
+                    try {
+                        let code = await sock.requestPairingCode(phoneNumber);
+                        code = code?.match(/.{1,4}/g)?.join("-") || code;
+                        console.log(``);
+                        console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(code)));
+                        console.log(``);
+                        console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
+                        console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
+                        console.log(``);
+                        console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
+                        console.log(``);
+                    } catch (error) {
+                        console.error(chalk.red('❌ Error getting pairing code:'), error);
+                    }
+                }, 5000);
             }
         }
 
-        // ✅ BOT CONNECTED
-        if (connection === 'open' && hasSession) {
+        // ✅ BOT ONLINE
+        if (connection === 'open' && sock.authState.creds.registered) {
             console.log(chalk.green(`
 ╔═══════════════════════════════════════╗
 ║   ✅ BOT IS ONLINE!                  ║
@@ -187,15 +173,18 @@ ${config.footer}`
             }
         }
 
+        if (qr) console.log(chalk.yellow('📱 QR Code generated.'));
+        if (connection === 'connecting') console.log(chalk.yellow('🔄 Connecting...'));
+
         if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const statusCode = lastDisconnect?.error?.output?.statusCode || 
+                lastDisconnect?.error?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
             if (statusCode === DisconnectReason.loggedOut) {
                 try {
                     fs.rmSync(sessionFolder, { recursive: true, force: true });
                     console.log(chalk.yellow('Session cleared. Please re-authenticate.'));
-                    console.log(chalk.yellow('🔄 Restart the bot to get a new pairing code.'));
                 } catch (e) {}
             }
 
@@ -279,11 +268,7 @@ ${config.footer}`
     // ==========================================
 
     sock.ev.on('group-participants.update', async (update) => {
-        try {
-            console.log('👥 Group update:', update);
-        } catch (error) {
-            console.error('Error in group update:', error);
-        }
+        console.log('👥 Group update:', update);
     });
 
     // ==========================================
@@ -317,7 +302,7 @@ ${config.footer}`
 }
 
 // ==========================================
-// START THE BOT
+// START
 // ==========================================
 
 startBot();
