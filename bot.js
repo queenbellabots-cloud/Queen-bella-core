@@ -104,48 +104,52 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    let pairingDone = false;
-
+    // ✅ FIXED: Generate pairing code on connection open
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
 
-        if (connection === 'open' && !pairingDone && !hasSession) {
-            pairingDone = true;
-            try {
-                const phoneNumber = config.ownerNumber || '254755660053';
-                console.log(chalk.yellow(`📱 Using phone number: ${phoneNumber}`));
-                console.log(chalk.yellow(`⏳ Requesting pairing code...`));
+        if (connection === 'open') {
+            console.log(chalk.green('✅ Connected to WhatsApp!'));
 
-                const code = await sock.requestPairingCode(phoneNumber);
-                const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+            // ✅ GENERATE PAIRING CODE IF NO SESSION
+            if (!hasSession) {
+                try {
+                    const phoneNumber = config.ownerNumber || '254755660053';
+                    console.log(chalk.yellow(`📱 Using phone number: ${phoneNumber}`));
+                    console.log(chalk.yellow(`⏳ Requesting pairing code...`));
 
-                console.log('');
-                console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(formattedCode)));
-                console.log('');
-                console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
-                console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
-                console.log('');
-                console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
-                console.log('');
-                
-            } catch (error) {
-                console.log(chalk.red('❌ Error getting pairing code:'), error.message);
-            }
-        }
+                    const code = await sock.requestPairingCode(phoneNumber);
+                    const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
-        if (connection === 'open' && hasSession) {
-            console.log(chalk.green(`
+                    console.log('');
+                    console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(formattedCode)));
+                    console.log('');
+                    console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
+                    console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
+                    console.log('');
+                    console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
+                    console.log('');
+
+                    // ✅ Save session after pairing
+                    hasSession = true;
+
+                } catch (error) {
+                    console.log(chalk.red('❌ Error getting pairing code:'), error.message);
+                }
+            } else {
+                console.log(chalk.green(`
 ╔═══════════════════════════════════════╗
 ║   ✅ BOT IS ONLINE!                  ║
 ║   👑 ${config.botName}                ║
 ║   📱 Connected as: ${sock.user.id}    ║
 ╚═══════════════════════════════════════╝
-            `));
-            
-            try {
-                const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                await sock.sendMessage(botNumber, {
-                    text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+                `));
+                
+                // Send welcome message to owner
+                try {
+                    const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                    await sock.sendMessage(botNumber, {
+                        text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃   👑 QUEEN BELLA MD V3           ┃
 ┃   Created by Dev RODGERS         ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -165,10 +169,11 @@ async function startBot() {
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 ${config.footer}`
-                });
-                console.log(chalk.green('✅ Welcome message sent!'));
-            } catch (e) {
-                console.log('Could not send welcome message:', e.message);
+                    });
+                    console.log(chalk.green('✅ Welcome message sent!'));
+                } catch (e) {
+                    console.log('Could not send welcome message:', e.message);
+                }
             }
         }
 
