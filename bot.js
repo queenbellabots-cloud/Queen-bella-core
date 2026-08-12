@@ -14,6 +14,13 @@ const express = require('express');
 const path = require('path');
 
 // ==========================================
+// 📦 GLOBAL VARIABLES
+// ==========================================
+
+global.commands = new Map();
+global.botMode = 'public'; // public or private
+
+// ==========================================
 // 📦 LOAD ALL YOUR COMMANDS
 // ==========================================
 
@@ -44,6 +51,18 @@ function loadAllCommands() {
     }
     
     console.log(chalk.green(`✅ Loaded ${global.commands.size} commands successfully.`));
+}
+
+// ==========================================
+// 🚀 CHECK IF SENDER IS OWNER
+// ==========================================
+
+function isOwner(sender) {
+    const ownerNumber = config.ownerNumber || '254755660053';
+    const senderNumber = sender ? sender.split('@')[0] : '';
+    return sender === ownerNumber + '@s.whatsapp.net' || 
+           sender === ownerNumber + '@c.us' ||
+           senderNumber === ownerNumber;
 }
 
 // ==========================================
@@ -147,7 +166,7 @@ async function startBot() {
 ✅ *BOT IS ONLINE!*
 
 📌 *Bot Name:* ${config.botName}
-👤 *Owner:* ${config.ownerName}
+👤 *Owner:* ${config.botOwner}
 ⚡ *Prefix:* ${config.prefix}
 🟢 *Status:* Connected!
 
@@ -187,7 +206,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // 📥 MESSAGE HANDLER
+    // 📥 MESSAGE HANDLER (Integrated from main.js)
     // ==========================================
 
     sock.ev.on('messages.upsert', async (chatUpdate) => {
@@ -196,6 +215,11 @@ ${config.footer}`
             if (!mek || !mek.message) return;
 
             const chatId = mek.key.remoteJid;
+
+            // Skip status and channel messages
+            const isStatus = chatId === 'status@broadcast';
+            const isChannel = chatId.includes('@newsletter');
+            if (isStatus || isChannel) return;
 
             // Get text from message
             let text = '';
@@ -216,12 +240,44 @@ ${config.footer}`
                 const args = text.slice(1).trim().split(' ');
                 const commandName = args.shift().toLowerCase();
 
-                console.log(`📥 Command: ${commandName}`);
+                const sender = mek.key.participant || mek.key.remoteJid;
+                const senderNumber = sender ? sender.split('@')[0] : 'Unknown';
+                const isOwnerCheck = isOwner(sender);
+                const botMode = global.botMode || 'public';
+
+                // 🔐 PRIVATE MODE CHECK
+                if (botMode === 'private' && !isOwnerCheck) {
+                    await sock.sendMessage(mek.key.remoteJid, {
+                        text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃   👑 QUEEN BELLA MD V3           ┃
+┃   Created by Dev RODGERS         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+🔒 *BOT IS IN PRIVATE MODE*
+
+Only the bot owner can use commands.
+
+👑 *Owner:* ${config.botOwner || 'QUEEN BELLA USER'}
+📱 *Number:* ${config.ownerNumber}
+
+📌 *Contact the owner to request access.*
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  📢 JOIN OUR CHANNEL         ┃
+┃  👇 Click the button below    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+${config.footer}`
+                    });
+                    return;
+                }
+
+                console.log(`📥 Command: ${commandName} from ${senderNumber}`);
 
                 if (global.commands && global.commands.has(commandName)) {
                     const command = global.commands.get(commandName);
                     try {
-                        await command.execute(sock, mek, args, mek.key.remoteJid, false);
+                        await command.execute(sock, mek, args, mek.key.remoteJid, isOwnerCheck);
                         console.log(`✅ Executed: ${commandName}`);
                     } catch (error) {
                         console.error(`❌ Error executing ${commandName}:`, error);
@@ -229,10 +285,26 @@ ${config.footer}`
                             text: '❌ Error executing command!'
                         });
                     }
+                } else {
+                    await sock.sendMessage(mek.key.remoteJid, { 
+                        text: `❌ Unknown command: ${text}\nType ${config.prefix}menu for available commands.`
+                    });
                 }
             }
         } catch (error) {
             console.error('Message error:', error);
+        }
+    });
+
+    // ==========================================
+    // 👥 GROUP PARTICIPANT UPDATE
+    // ==========================================
+
+    sock.ev.on('group-participants.update', async (update) => {
+        try {
+            console.log('👥 Group update:', update);
+        } catch (error) {
+            console.error('Error in group update:', error);
         }
     });
 
