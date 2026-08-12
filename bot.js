@@ -1,9 +1,6 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
  * 🔒 ALL YOUR HIDDEN CODE HERE!
- * 
- * User deploys → Gets pair code → Enters in WhatsApp → Bot connects!
- * NO SESSION ID NEEDED!
  */
 
 const config = require('./config.js');
@@ -14,14 +11,14 @@ const express = require('express');
 const path = require('path');
 
 // ==========================================
-// 📦 GLOBAL VARIABLES
+// GLOBAL VARIABLES
 // ==========================================
 
 global.commands = new Map();
-global.botMode = 'public'; // public or private
+global.botMode = 'public';
 
 // ==========================================
-// 📦 LOAD ALL YOUR COMMANDS
+// LOAD ALL YOUR COMMANDS
 // ==========================================
 
 function loadAllCommands() {
@@ -29,10 +26,10 @@ function loadAllCommands() {
     if (!fs.existsSync(commandsDir)) {
         fs.mkdirSync(commandsDir, { recursive: true });
     }
-    
+
     const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'));
     global.commands = new Map();
-    
+
     for (const file of files) {
         try {
             const command = require(`./plugins/${file}`);
@@ -49,12 +46,12 @@ function loadAllCommands() {
             console.error(chalk.red(`❌ Failed to load ${file}:`), error.message);
         }
     }
-    
+
     console.log(chalk.green(`✅ Loaded ${global.commands.size} commands successfully.`));
 }
 
 // ==========================================
-// 🚀 CHECK IF SENDER IS OWNER
+// CHECK IF SENDER IS OWNER
 // ==========================================
 
 function isOwner(sender) {
@@ -66,7 +63,7 @@ function isOwner(sender) {
 }
 
 // ==========================================
-# 🤖 MAIN BOT FUNCTION
+// MAIN BOT FUNCTION
 // ==========================================
 
 async function startBot() {
@@ -78,16 +75,13 @@ async function startBot() {
 ╚═══════════════════════════════════════╝
     `));
 
-    // Load all commands
     loadAllCommands();
 
-    // Create session folder
     const sessionFolder = './session';
     if (!fs.existsSync(sessionFolder)) {
         fs.mkdirSync(sessionFolder, { recursive: true });
     }
 
-    // Check if session already exists (bot already connected)
     const credsPath = path.join(sessionFolder, 'creds.json');
     let hasSession = fs.existsSync(credsPath);
 
@@ -110,16 +104,11 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // ==========================================
-    // 🔑 GENERATE PAIRING CODE (SHOWN IN CONSOLE)
-    // ==========================================
-
     let pairingDone = false;
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
 
-        // 🔥 GENERATE PAIRING CODE AND SHOW IN CONSOLE
         if (connection === 'open' && !pairingDone && !hasSession) {
             pairingDone = true;
             try {
@@ -130,21 +119,20 @@ async function startBot() {
                 const code = await sock.requestPairingCode(phoneNumber);
                 const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
-                console.log(``);
+                console.log('');
                 console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(formattedCode)));
-                console.log(``);
+                console.log('');
                 console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
                 console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
-                console.log(``);
+                console.log('');
                 console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
-                console.log(``);
+                console.log('');
                 
             } catch (error) {
                 console.log(chalk.red('❌ Error getting pairing code:'), error.message);
             }
         }
 
-        // ✅ BOT CONNECTED SUCCESSFULLY!
         if (connection === 'open' && hasSession) {
             console.log(chalk.green(`
 ╔═══════════════════════════════════════╗
@@ -154,7 +142,6 @@ async function startBot() {
 ╚═══════════════════════════════════════╝
             `));
             
-            // Send welcome message to owner
             try {
                 const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
                 await sock.sendMessage(botNumber, {
@@ -185,7 +172,6 @@ ${config.footer}`
             }
         }
 
-        // 🔄 RECONNECT IF DISCONNECTED
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
@@ -206,7 +192,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // 📥 MESSAGE HANDLER (Integrated from main.js)
+    // MESSAGE HANDLER
     // ==========================================
 
     sock.ev.on('messages.upsert', async (chatUpdate) => {
@@ -216,12 +202,10 @@ ${config.footer}`
 
             const chatId = mek.key.remoteJid;
 
-            // Skip status and channel messages
             const isStatus = chatId === 'status@broadcast';
             const isChannel = chatId.includes('@newsletter');
             if (isStatus || isChannel) return;
 
-            // Get text from message
             let text = '';
             if (mek.message.conversation) {
                 text = mek.message.conversation;
@@ -235,7 +219,6 @@ ${config.footer}`
 
             if (!text) return;
 
-            // Check if command exists
             if (text.startsWith(config.prefix || '.')) {
                 const args = text.slice(1).trim().split(' ');
                 const commandName = args.shift().toLowerCase();
@@ -245,29 +228,9 @@ ${config.footer}`
                 const isOwnerCheck = isOwner(sender);
                 const botMode = global.botMode || 'public';
 
-                // 🔐 PRIVATE MODE CHECK
                 if (botMode === 'private' && !isOwnerCheck) {
                     await sock.sendMessage(mek.key.remoteJid, {
-                        text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃   👑 QUEEN BELLA MD V3           ┃
-┃   Created by Dev RODGERS         ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-🔒 *BOT IS IN PRIVATE MODE*
-
-Only the bot owner can use commands.
-
-👑 *Owner:* ${config.botOwner || 'QUEEN BELLA USER'}
-📱 *Number:* ${config.ownerNumber}
-
-📌 *Contact the owner to request access.*
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  📢 JOIN OUR CHANNEL         ┃
-┃  👇 Click the button below    ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-${config.footer}`
+                        text: `🔒 *BOT IS IN PRIVATE MODE*\n\nOnly the bot owner can use commands.\n\n👑 Owner: ${config.botOwner}\n📱 Number: ${config.ownerNumber}`
                     });
                     return;
                 }
@@ -297,7 +260,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // 👥 GROUP PARTICIPANT UPDATE
+    // GROUP PARTICIPANT UPDATE
     // ==========================================
 
     sock.ev.on('group-participants.update', async (update) => {
@@ -309,7 +272,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // 🚀 ANTI-CALL
+    // ANTI-CALL
     // ==========================================
 
     sock.ev.on('call', async (calls) => {
@@ -325,7 +288,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // 🌐 WEB SERVER
+    // WEB SERVER
     // ==========================================
 
     const app = express();
@@ -339,7 +302,7 @@ ${config.footer}`
 }
 
 // ==========================================
-// 🚀 START
+// START THE BOT
 // ==========================================
 
 startBot();
