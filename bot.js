@@ -2,8 +2,8 @@
  * 👑 QUEEN BELLA MD V3 - CORE BOT
  * 🔒 ALL YOUR HIDDEN CODE HERE!
  * 
- * ⚠️ This is in the PRIVATE repo
- * ⚠️ Users NEVER see this!
+ * User deploys → Gets pair code → Enters in WhatsApp → Bot connects!
+ * NO SESSION ID NEEDED!
  */
 
 const config = require('./config.js');
@@ -11,16 +11,19 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const fs = require('fs');
 const chalk = require('chalk');
 const express = require('express');
+const path = require('path');
 
 // ==========================================
 // 📦 LOAD ALL YOUR COMMANDS
 // ==========================================
 
-// Read all command files from plugins/ folder
 function loadAllCommands() {
     const commandsDir = './plugins';
-    const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'));
+    if (!fs.existsSync(commandsDir)) {
+        fs.mkdirSync(commandsDir, { recursive: true });
+    }
     
+    const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'));
     global.commands = new Map();
     
     for (const file of files) {
@@ -33,14 +36,14 @@ function loadAllCommands() {
                         global.commands.set(alias.toLowerCase(), command);
                     });
                 }
-                console.log(`✅ Loaded: ${command.name}`);
+                console.log(chalk.green(`✅ Loaded: ${command.name}`));
             }
         } catch (error) {
-            console.error(`❌ Failed to load ${file}:`, error.message);
+            console.error(chalk.red(`❌ Failed to load ${file}:`), error.message);
         }
     }
     
-    console.log(`✅ Loaded ${global.commands.size} commands successfully.`);
+    console.log(chalk.green(`✅ Loaded ${global.commands.size} commands successfully.`));
 }
 
 // ==========================================
@@ -48,32 +51,31 @@ function loadAllCommands() {
 // ==========================================
 
 async function startBot() {
-    console.log(chalk.cyan('╔═══════════════════════════════════╗'));
-    console.log(chalk.cyan('║   👑 QUEEN BELLA MD V3           ║'));
-    console.log(chalk.cyan('║   Created by Dev RODGERS         ║'));
-    console.log(chalk.cyan('╚═══════════════════════════════════╝'));
+    console.log(chalk.cyan(`
+╔═══════════════════════════════════════╗
+║   👑 QUEEN BELLA MD V3               ║
+║   Created by Dev RODGERS             ║
+║   🔒 CODE PROTECTED                  ║
+╚═══════════════════════════════════════╝
+    `));
 
     // Load all commands
     loadAllCommands();
 
-    // Check session
-    if (!config.sessionId) {
-        console.log(chalk.red('❌ No Session ID found!'));
-        console.log(chalk.yellow('📱 Get your Session ID from: https://queen-bella-pairing.vercel.app'));
-        return;
+    // Create session folder
+    const sessionFolder = './session';
+    if (!fs.existsSync(sessionFolder)) {
+        fs.mkdirSync(sessionFolder, { recursive: true });
     }
 
-    const sessionFolder = './session';
-    if (!fs.existsSync(sessionFolder)) fs.mkdirSync(sessionFolder);
-
+    // Check if session already exists (bot already connected)
     const credsPath = path.join(sessionFolder, 'creds.json');
-    try {
-        const sessionJson = Buffer.from(config.sessionId, 'base64').toString('utf8');
-        fs.writeFileSync(credsPath, sessionJson);
-        console.log(chalk.green('✅ Session loaded from config!'));
-    } catch (e) {
-        console.log(chalk.red('❌ Invalid Session ID!'));
-        return;
+    let hasSession = fs.existsSync(credsPath);
+
+    if (hasSession) {
+        console.log(chalk.green('✅ Session found! Bot will connect automatically.'));
+    } else {
+        console.log(chalk.yellow('📱 No session found. Will generate pairing code.'));
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
@@ -81,19 +83,102 @@ async function startBot() {
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        browser: ['QUEEN BELLA MD', 'Chrome', '1.0.1']
+        browser: ['QUEEN BELLA MD', 'Chrome', '1.0.1'],
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        downloadHistory: false,
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
+    // ==========================================
+    // 🔑 GENERATE PAIRING CODE (SHOWN IN CONSOLE)
+    // ==========================================
+
+    let pairingDone = false;
+
+    sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
-        if (connection === 'open') {
-            console.log(chalk.green(`✅ ${config.botName} is Online!`));
-            console.log(chalk.green(`👑 Connected as: ${sock.user.id}`));
+
+        // 🔥 GENERATE PAIRING CODE AND SHOW IN CONSOLE
+        if (connection === 'open' && !pairingDone && !hasSession) {
+            pairingDone = true;
+            try {
+                const phoneNumber = config.ownerNumber || '254755660053';
+                console.log(chalk.yellow(`📱 Using phone number: ${phoneNumber}`));
+                console.log(chalk.yellow(`⏳ Requesting pairing code...`));
+
+                const code = await sock.requestPairingCode(phoneNumber);
+                const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+                console.log(``);
+                console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(formattedCode)));
+                console.log(``);
+                console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
+                console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
+                console.log(``);
+                console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
+                console.log(``);
+                
+            } catch (error) {
+                console.log(chalk.red('❌ Error getting pairing code:'), error.message);
+            }
         }
+
+        // ✅ BOT CONNECTED SUCCESSFULLY!
+        if (connection === 'open' && hasSession) {
+            console.log(chalk.green(`
+╔═══════════════════════════════════════╗
+║   ✅ BOT IS ONLINE!                  ║
+║   👑 ${config.botName}                ║
+║   📱 Connected as: ${sock.user.id}    ║
+╚═══════════════════════════════════════╝
+            `));
+            
+            // Send welcome message to owner
+            try {
+                const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                await sock.sendMessage(botNumber, {
+                    text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃   👑 QUEEN BELLA MD V3           ┃
+┃   Created by Dev RODGERS         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✅ *BOT IS ONLINE!*
+
+📌 *Bot Name:* ${config.botName}
+👤 *Owner:* ${config.ownerName}
+⚡ *Prefix:* ${config.prefix}
+🟢 *Status:* Connected!
+
+📌 *Commands:* Type ${config.prefix}menu to see all commands
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  📢 JOIN OUR CHANNEL         ┃
+┃  👇 Click the button below    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+${config.footer}`
+                });
+                console.log(chalk.green('✅ Welcome message sent!'));
+            } catch (e) {
+                console.log('Could not send welcome message:', e.message);
+            }
+        }
+
+        // 🔄 RECONNECT IF DISCONNECTED
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+            if (statusCode === DisconnectReason.loggedOut) {
+                try {
+                    fs.rmSync(sessionFolder, { recursive: true, force: true });
+                    console.log(chalk.yellow('Session cleared. Please re-authenticate.'));
+                    console.log(chalk.yellow('🔄 Restart the bot to get a new pairing code.'));
+                } catch (e) {}
+            }
+
             if (shouldReconnect) {
                 console.log(chalk.yellow('🔄 Reconnecting...'));
                 setTimeout(startBot, 3000);
