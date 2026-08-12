@@ -1,30 +1,71 @@
 /**
- * 👑 QUEEN BELLA MD V1.0.1
- * 🔒 CORE BOT CODE - PRIVATE
+ * 👑 QUEEN BELLA MD V3 - CORE BOT
+ * 🔒 ALL YOUR HIDDEN CODE HERE!
+ * 
+ * ⚠️ This is in the PRIVATE repo
+ * ⚠️ Users NEVER see this!
  */
 
-const config = global.__config || require('./config.js');
-
+const config = require('./config.js');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const chalk = require('chalk');
 const express = require('express');
-const path = require('path');
+
+// ==========================================
+// 📦 LOAD ALL YOUR COMMANDS
+// ==========================================
+
+// Read all command files from plugins/ folder
+function loadAllCommands() {
+    const commandsDir = './plugins';
+    const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'));
+    
+    global.commands = new Map();
+    
+    for (const file of files) {
+        try {
+            const command = require(`./plugins/${file}`);
+            if (command.name) {
+                global.commands.set(command.name.toLowerCase(), command);
+                if (command.aliases) {
+                    command.aliases.forEach(alias => {
+                        global.commands.set(alias.toLowerCase(), command);
+                    });
+                }
+                console.log(`✅ Loaded: ${command.name}`);
+            }
+        } catch (error) {
+            console.error(`❌ Failed to load ${file}:`, error.message);
+        }
+    }
+    
+    console.log(`✅ Loaded ${global.commands.size} commands successfully.`);
+}
+
+// ==========================================
+# 🤖 MAIN BOT FUNCTION
+// ==========================================
 
 async function startBot() {
     console.log(chalk.cyan('╔═══════════════════════════════════╗'));
-    console.log(chalk.cyan('║   👑 QUEEN BELLA MD V1.0.1      ║'));
+    console.log(chalk.cyan('║   👑 QUEEN BELLA MD V3           ║'));
     console.log(chalk.cyan('║   Created by Dev RODGERS         ║'));
     console.log(chalk.cyan('╚═══════════════════════════════════╝'));
 
+    // Load all commands
+    loadAllCommands();
+
+    // Check session
     if (!config.sessionId) {
         console.log(chalk.red('❌ No Session ID found!'));
+        console.log(chalk.yellow('📱 Get your Session ID from: https://queen-bella-pairing.vercel.app'));
         return;
     }
 
     const sessionFolder = './session';
     if (!fs.existsSync(sessionFolder)) fs.mkdirSync(sessionFolder);
-    
+
     const credsPath = path.join(sessionFolder, 'creds.json');
     try {
         const sessionJson = Buffer.from(config.sessionId, 'base64').toString('utf8');
@@ -36,7 +77,7 @@ async function startBot() {
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
-    
+
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
@@ -60,56 +101,60 @@ async function startBot() {
         }
     });
 
+    // ==========================================
     // 📥 MESSAGE HANDLER
+    // ==========================================
+
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            const text = mek.message?.conversation || 
-                        mek.message?.extendedTextMessage?.text || '';
+            const chatId = mek.key.remoteJid;
+
+            // Get text from message
+            let text = '';
+            if (mek.message.conversation) {
+                text = mek.message.conversation;
+            } else if (mek.message.extendedTextMessage) {
+                text = mek.message.extendedTextMessage.text;
+            } else if (mek.message.imageMessage) {
+                text = mek.message.imageMessage.caption || '';
+            } else if (mek.message.videoMessage) {
+                text = mek.message.videoMessage.caption || '';
+            }
 
             if (!text) return;
 
-            if (text.startsWith('.menu')) {
-                await sock.sendMessage(mek.key.remoteJid, {
-                    text: `👑 *QUEEN BELLA MD*\n\n📌 Commands:\n.menu - Show menu\n.ping - Check latency\n.alive - Check bot status\n.owner - Owner info\n.uptime - Uptime\n\n${config.footer}`
-                });
-            }
+            // Check if command exists
+            if (text.startsWith(config.prefix || '.')) {
+                const args = text.slice(1).trim().split(' ');
+                const commandName = args.shift().toLowerCase();
 
-            if (text.startsWith('.ping')) {
-                await sock.sendMessage(mek.key.remoteJid, {
-                    text: `🏓 *PONG!*\n\n📡 Latency: ${Date.now() - mek.messageTimestamp}ms\n✅ Status: Online\n\n${config.footer}`
-                });
-            }
+                console.log(`📥 Command: ${commandName}`);
 
-            if (text.startsWith('.alive')) {
-                await sock.sendMessage(mek.key.remoteJid, {
-                    text: `👑 *QUEEN BELLA MD IS ALIVE!*\n\n✅ Status: Online\n⏰ Uptime: ${process.uptime().toFixed(0)}s\n\n${config.footer}`
-                });
-            }
-
-            if (text.startsWith('.owner')) {
-                await sock.sendMessage(mek.key.remoteJid, {
-                    text: `👑 *OWNER INFO*\n\n👤 Name: ${config.ownerName}\n📱 Number: ${config.ownerNumber}\n📢 Channel: ${config.channelName}\n🔗 ${config.channelLink}\n\n${config.footer}`
-                });
-            }
-
-            if (text.startsWith('.uptime')) {
-                const uptime = process.uptime();
-                const hours = Math.floor(uptime / 3600);
-                const minutes = Math.floor((uptime % 3600) / 60);
-                const seconds = Math.floor(uptime % 60);
-                await sock.sendMessage(mek.key.remoteJid, {
-                    text: `⏰ *UPTIME*\n\nHours: ${hours}\nMinutes: ${minutes}\nSeconds: ${seconds}\n\n${config.footer}`
-                });
+                if (global.commands && global.commands.has(commandName)) {
+                    const command = global.commands.get(commandName);
+                    try {
+                        await command.execute(sock, mek, args, mek.key.remoteJid, false);
+                        console.log(`✅ Executed: ${commandName}`);
+                    } catch (error) {
+                        console.error(`❌ Error executing ${commandName}:`, error);
+                        await sock.sendMessage(mek.key.remoteJid, { 
+                            text: '❌ Error executing command!'
+                        });
+                    }
+                }
             }
         } catch (error) {
             console.error('Message error:', error);
         }
     });
 
+    // ==========================================
     // 🚀 ANTI-CALL
+    // ==========================================
+
     sock.ev.on('call', async (calls) => {
         for (const call of calls) {
             if (!call.from) continue;
@@ -122,7 +167,10 @@ async function startBot() {
         }
     });
 
+    // ==========================================
     // 🌐 WEB SERVER
+    // ==========================================
+
     const app = express();
     const PORT = process.env.PORT || 3000;
     app.get('/', (req, res) => {
@@ -132,5 +180,9 @@ async function startBot() {
         console.log(`🌐 Web server running on port ${PORT}`);
     });
 }
+
+// ==========================================
+// 🚀 START
+// ==========================================
 
 startBot();
