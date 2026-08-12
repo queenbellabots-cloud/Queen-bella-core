@@ -1,39 +1,15 @@
 /**
  * 👑 QUEEN BELLA MD V1.0.1
  * 🔒 CORE BOT CODE - PRIVATE
- * ⚠️ DO NOT SHARE THIS FILE
  */
 
-// ==========================================
-// 📦 CONFIGURATION
-// ==========================================
-
-const config = {
-    botName: "QUEEN BELLA MD V1",
-    ownerName: "RODGERS",
-    prefix: ".",
-    mode: "public",
-    ownerNumber: "254755660053",
-    channelId: "120363411498601038@newsletter",
-    channelName: "QUEEN BELLA MD",
-    channelLink: "https://whatsapp.com/channel/0029VbCwZHACXC3PNHgtMT31",
-    footer: "© A BELLA BOTS PRODUCTIONS"
-};
-
-// ==========================================
-// 📦 DEPENDENCIES
-// ==========================================
+const config = global.__config || require('./config.js');
 
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const chalk = require('chalk');
 const express = require('express');
-const axios = require('axios');
 const path = require('path');
-
-// ==========================================
-# 🤖 MAIN BOT CODE
-// ==========================================
 
 async function startBot() {
     console.log(chalk.cyan('╔═══════════════════════════════════╗'));
@@ -41,8 +17,23 @@ async function startBot() {
     console.log(chalk.cyan('║   Created by Dev RODGERS         ║'));
     console.log(chalk.cyan('╚═══════════════════════════════════╝'));
 
+    if (!config.sessionId) {
+        console.log(chalk.red('❌ No Session ID found!'));
+        return;
+    }
+
     const sessionFolder = './session';
     if (!fs.existsSync(sessionFolder)) fs.mkdirSync(sessionFolder);
+    
+    const credsPath = path.join(sessionFolder, 'creds.json');
+    try {
+        const sessionJson = Buffer.from(config.sessionId, 'base64').toString('utf8');
+        fs.writeFileSync(credsPath, sessionJson);
+        console.log(chalk.green('✅ Session loaded from config!'));
+    } catch (e) {
+        console.log(chalk.red('❌ Invalid Session ID!'));
+        return;
+    }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
     
@@ -69,51 +60,48 @@ async function startBot() {
         }
     });
 
-    // ==========================================
     // 📥 MESSAGE HANDLER
-    // ==========================================
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
-            
+
             const text = mek.message?.conversation || 
                         mek.message?.extendedTextMessage?.text || '';
-            
+
             if (!text) return;
-            
-            // COMMANDS GO HERE
+
             if (text.startsWith('.menu')) {
                 await sock.sendMessage(mek.key.remoteJid, {
-                    text: `👑 *QUEEN BELLA MD*\n\n📌 *Commands:*\n.menu - Show menu\n.ping - Check latency\n.alive - Check bot status\n.owner - Owner info\n.uptime - Uptime\n\n© A BELLA BOTS PRODUCTIONS`
+                    text: `👑 *QUEEN BELLA MD*\n\n📌 Commands:\n.menu - Show menu\n.ping - Check latency\n.alive - Check bot status\n.owner - Owner info\n.uptime - Uptime\n\n${config.footer}`
                 });
             }
-            
+
             if (text.startsWith('.ping')) {
                 await sock.sendMessage(mek.key.remoteJid, {
-                    text: `🏓 *PONG!*\n\n📡 Latency: ${Date.now() - mek.messageTimestamp}ms\n✅ Status: Online\n\n© A BELLA BOTS PRODUCTIONS`
+                    text: `🏓 *PONG!*\n\n📡 Latency: ${Date.now() - mek.messageTimestamp}ms\n✅ Status: Online\n\n${config.footer}`
                 });
             }
-            
+
             if (text.startsWith('.alive')) {
                 await sock.sendMessage(mek.key.remoteJid, {
-                    text: `👑 *QUEEN BELLA MD IS ALIVE!*\n\n✅ Status: Online\n⏰ Uptime: ${process.uptime().toFixed(0)}s\n\n© A BELLA BOTS PRODUCTIONS`
+                    text: `👑 *QUEEN BELLA MD IS ALIVE!*\n\n✅ Status: Online\n⏰ Uptime: ${process.uptime().toFixed(0)}s\n\n${config.footer}`
                 });
             }
-            
+
             if (text.startsWith('.owner')) {
                 await sock.sendMessage(mek.key.remoteJid, {
-                    text: `👑 *OWNER INFO*\n\n👤 Name: ${config.ownerName}\n📱 Number: ${config.ownerNumber}\n📢 Channel: ${config.channelName}\n🔗 ${config.channelLink}\n\n© A BELLA BOTS PRODUCTIONS`
+                    text: `👑 *OWNER INFO*\n\n👤 Name: ${config.ownerName}\n📱 Number: ${config.ownerNumber}\n📢 Channel: ${config.channelName}\n🔗 ${config.channelLink}\n\n${config.footer}`
                 });
             }
-            
+
             if (text.startsWith('.uptime')) {
                 const uptime = process.uptime();
                 const hours = Math.floor(uptime / 3600);
                 const minutes = Math.floor((uptime % 3600) / 60);
                 const seconds = Math.floor(uptime % 60);
                 await sock.sendMessage(mek.key.remoteJid, {
-                    text: `⏰ *UPTIME*\n\nHours: ${hours}\nMinutes: ${minutes}\nSeconds: ${seconds}\n\n© A BELLA BOTS PRODUCTIONS`
+                    text: `⏰ *UPTIME*\n\nHours: ${hours}\nMinutes: ${minutes}\nSeconds: ${seconds}\n\n${config.footer}`
                 });
             }
         } catch (error) {
@@ -121,9 +109,7 @@ async function startBot() {
         }
     });
 
-    // ==========================================
     // 🚀 ANTI-CALL
-    // ==========================================
     sock.ev.on('call', async (calls) => {
         for (const call of calls) {
             if (!call.from) continue;
@@ -136,9 +122,7 @@ async function startBot() {
         }
     });
 
-    // ==========================================
-    // 🌐 EXPRESS WEB SERVER
-    // ==========================================
+    // 🌐 WEB SERVER
     const app = express();
     const PORT = process.env.PORT || 3000;
     app.get('/', (req, res) => {
@@ -147,12 +131,6 @@ async function startBot() {
     app.listen(PORT, () => {
         console.log(`🌐 Web server running on port ${PORT}`);
     });
-
-    // ==========================================
-    // 💀 GHOST MODE
-    // ==========================================
-    // (Add all your other features here)
-
 }
 
 startBot();
