@@ -231,4 +231,4 @@ async function startBot() {
     });
 }
 
-startBot();
+startBot().catch(console.error);
