@@ -1,10 +1,8 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
  * 🔒 READS COMMANDS FROM plugins/ FOLDER
+ * ✅ SETTINGS MERGED INTO BOT
  */
-
-const config = require('./config.js');
-const settings = require('./settings.js');
 
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
@@ -12,6 +10,39 @@ const chalk = require('chalk');
 const express = require('express');
 const path = require('path');
 const pino = require('pino');
+
+// ==========================================
+// 📝 SETTINGS - MERGED HERE (HIDDEN)
+// ==========================================
+
+const settings = {
+    prefix: ".",
+    botName: "QUEEN BELLA MD V3",
+    botOwner: "RODGERS",
+    ownerNumber: "254755660053",
+    mode: "public",
+    channelId: "120363411498601038@newsletter",
+    channelName: "QUEEN BELLA MD",
+    channelLink: "https://whatsapp.com/channel/0029VbCwZHACXC3PNHgtMT31",
+    menuImage: "https://imagetourl.cloud/9eumy3kr.jpg",
+    footer: "© A BELLA BOTS PRODUCTIONS"
+};
+
+// Load user config from public repo
+let config = {};
+try {
+    config = require('./config.js');
+    console.log(chalk.green('✅ Config loaded from user!'));
+} catch (e) {
+    console.log(chalk.yellow('⚠️ Using default settings'));
+}
+
+// Merge config with settings
+const mergedConfig = { ...settings, ...config };
+
+// ==========================================
+// 📂 COMMAND LOADER
+// ==========================================
 
 global.commands = new Map();
 
@@ -48,6 +79,10 @@ function loadCommands() {
     }
     console.log(chalk.green(`✅ Loaded ${global.commands.size} commands successfully.`));
 }
+
+// ==========================================
+# 🤖 MAIN BOT FUNCTION
+// ==========================================
 
 async function startBot() {
     console.log(chalk.cyan(`
@@ -87,7 +122,7 @@ async function startBot() {
         if (!sock.authState.creds.registered && !pairingDone) {
             if (connection === 'connecting' || connection === 'open') {
                 pairingDone = true;
-                let phoneNumber = config.ownerNumber || settings.ownerNumber || '254755660053';
+                let phoneNumber = mergedConfig.ownerNumber || '254755660053';
                 phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
 
                 console.log(chalk.green(`📱 Using phone number: ${phoneNumber}`));
@@ -116,7 +151,7 @@ async function startBot() {
             console.log(chalk.green(`
 ╔═══════════════════════════════════════╗
 ║   ✅ BOT IS ONLINE!                  ║
-║   👑 ${config.botName || settings.botName} ║
+║   👑 ${mergedConfig.botName}          ║
 ║   📱 Connected as: ${sock.user.id}    ║
 ╚═══════════════════════════════════════╝
             `));
@@ -131,19 +166,19 @@ async function startBot() {
 
 ✅ *BOT IS ONLINE!*
 
-📌 *Bot Name:* ${config.botName || settings.botName}
-👤 *Owner:* ${config.botOwner || settings.botOwner}
-⚡ *Prefix:* ${config.prefix || settings.prefix || '.'}
+📌 *Bot Name:* ${mergedConfig.botName}
+👤 *Owner:* ${mergedConfig.botOwner}
+⚡ *Prefix:* ${mergedConfig.prefix}
 🟢 *Status:* Connected!
 
-📌 *Commands:* Type ${config.prefix || '.'}menu to see all commands
+📌 *Commands:* Type ${mergedConfig.prefix}menu to see all commands
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  📢 JOIN OUR CHANNEL         ┃
 ┃  👇 Click the button below    ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-${config.footer || settings.footer}`
+${mergedConfig.footer}`
                 });
                 console.log(chalk.green('✅ Welcome message sent!'));
             } catch (e) {
@@ -169,7 +204,10 @@ ${config.footer || settings.footer}`
         }
     });
 
-    // MESSAGE HANDLER
+    // ==========================================
+    // 📥 MESSAGE HANDLER
+    // ==========================================
+
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -193,7 +231,7 @@ ${config.footer || settings.footer}`
 
             if (!text) return;
 
-            const prefix = config.prefix || settings.prefix || '.';
+            const prefix = mergedConfig.prefix || '.';
 
             if (text.startsWith(prefix)) {
                 const args = text.slice(1).trim().split(' ');
@@ -201,15 +239,15 @@ ${config.footer || settings.footer}`
 
                 const sender = mek.key.participant || mek.key.remoteJid;
                 const senderNumber = sender ? sender.split('@')[0] : 'Unknown';
-                const ownerNumber = config.ownerNumber || settings.ownerNumber || '254755660053';
+                const ownerNumber = mergedConfig.ownerNumber || '254755660053';
                 const isOwner = sender === ownerNumber + '@s.whatsapp.net' || 
                                 sender === ownerNumber + '@c.us' ||
                                 senderNumber === ownerNumber;
-                const botMode = config.mode || settings.mode || 'public';
+                const botMode = mergedConfig.mode || 'public';
 
                 if (botMode === 'private' && !isOwner) {
                     await sock.sendMessage(mek.key.remoteJid, {
-                        text: `🔒 *BOT IS IN PRIVATE MODE*\n\nOnly the bot owner can use commands.\n\n👑 Owner: ${config.botOwner || settings.botOwner}\n📱 Number: ${ownerNumber}`
+                        text: `🔒 *BOT IS IN PRIVATE MODE*\n\nOnly the bot owner can use commands.\n\n👑 Owner: ${mergedConfig.botOwner}\n📱 Number: ${ownerNumber}`
                     });
                     return;
                 }
