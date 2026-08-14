@@ -1,9 +1,15 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
- * 🔒 PAIRING CODE WITH RETRY LOGIC
+ * 🔒 READS COMMANDS FROM plugins/ FOLDER
  */
 
+// ==========================================
+// 📦 LOAD CONFIG & DEPENDENCIES
+// ==========================================
+
 const config = require('./config.js');
+const settings = require('./settings.js');
+
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const chalk = require('chalk');
@@ -12,31 +18,32 @@ const path = require('path');
 const pino = require('pino');
 
 // ==========================================
-// GLOBAL VARIABLES
+// 📂 COMMAND LOADER - READS FROM plugins/
 // ==========================================
 
 global.commands = new Map();
-global.botMode = 'public';
 
-// ==========================================
-// LOAD ALL YOUR COMMANDS
-// ==========================================
-
-function loadAllCommands() {
-    const commandsDir = './plugins';
+function loadCommands() {
+    const commandsDir = path.join(process.cwd(), 'plugins');
+    
     if (!fs.existsSync(commandsDir)) {
         fs.mkdirSync(commandsDir, { recursive: true });
+        console.log(chalk.yellow('📁 Created plugins folder'));
     }
 
-    const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'));
-    global.commands = new Map();
+    const files = fs.readdirSync(commandsDir).filter(file => file.endsWith('.js'));
+    console.log(chalk.red.bold(`\n📦 Loading QUEEN BELLA MD Commands...`));
+    global.commands.clear();
 
     for (const file of files) {
         try {
-            const command = require(`./plugins/${file}`);
+            const filePath = path.join(commandsDir, file);
+            delete require.cache[require.resolve(filePath)];
+            const command = require(filePath);
+            
             if (command.name) {
                 global.commands.set(command.name.toLowerCase(), command);
-                if (command.aliases) {
+                if (command.aliases && Array.isArray(command.aliases)) {
                     command.aliases.forEach(alias => {
                         global.commands.set(alias.toLowerCase(), command);
                     });
@@ -47,24 +54,11 @@ function loadAllCommands() {
             console.error(chalk.red(`❌ Failed to load ${file}:`), error.message);
         }
     }
-
     console.log(chalk.green(`✅ Loaded ${global.commands.size} commands successfully.`));
 }
 
 // ==========================================
-// CHECK IF SENDER IS OWNER
-// ==========================================
-
-function isOwner(sender) {
-    const ownerNumber = config.ownerNumber || '254755660053';
-    const senderNumber = sender ? sender.split('@')[0] : '';
-    return sender === ownerNumber + '@s.whatsapp.net' || 
-           sender === ownerNumber + '@c.us' ||
-           senderNumber === ownerNumber;
-}
-
-// ==========================================
-// MAIN BOT FUNCTION
+# 🤖 MAIN BOT FUNCTION
 // ==========================================
 
 async function startBot() {
@@ -76,21 +70,12 @@ async function startBot() {
 ╚═══════════════════════════════════════╝
     `));
 
-    loadAllCommands();
+    // ✅ LOAD ALL COMMANDS FROM plugins/
+    loadCommands();
 
     const sessionFolder = './session';
     if (!fs.existsSync(sessionFolder)) {
         fs.mkdirSync(sessionFolder, { recursive: true });
-    }
-
-    // ✅ DELETE OLD SESSION TO FORCE PAIRING
-    const credsPath = path.join(sessionFolder, 'creds.json');
-    if (fs.existsSync(credsPath)) {
-        console.log(chalk.yellow('📱 Deleting old session...'));
-        try {
-            fs.unlinkSync(credsPath);
-            console.log(chalk.green('✅ Old session deleted!'));
-        } catch (e) {}
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
@@ -103,40 +88,35 @@ async function startBot() {
         syncFullHistory: false,
         downloadHistory: false,
         logger: pino({ level: 'silent' }),
-        // ✅ RETRY ON FAILURE
-        defaultQueryTimeoutMs: 60000,
-        connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 10000,
+        getMessage: async (key) => {
+            return "";
+        }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     // ==========================================
-    // ✅ PAIRING CODE GENERATION - WITH RETRY
+    // 🔑 PAIRING CODE GENERATION
     // ==========================================
 
     let pairingDone = false;
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
 
     sock.ev.on('connection.update', async (s) => {
-        const { connection, lastDisconnect, qr } = s;
+        const { connection, lastDisconnect } = s;
 
         if (!sock.authState.creds.registered && !pairingDone) {
             if (connection === 'connecting' || connection === 'open') {
                 pairingDone = true;
-                let phoneNumber = config.ownerNumber || '254755660053';
+                let phoneNumber = config.ownerNumber || settings.ownerNumber || '254755660053';
                 phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
 
                 console.log(chalk.green(`📱 Using phone number: ${phoneNumber}`));
                 console.log(chalk.yellow(`⏳ Requesting pairing code...`));
 
-                // ✅ RETRY LOGIC - TRY 3 TIMES
-                const requestPairing = async (attempt) => {
+                setTimeout(async () => {
                     try {
                         let code = await sock.requestPairingCode(phoneNumber);
                         code = code?.match(/.{1,4}/g)?.join("-") || code;
-                        
                         console.log(``);
                         console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(code)));
                         console.log(``);
@@ -145,32 +125,10 @@ async function startBot() {
                         console.log(``);
                         console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
                         console.log(``);
-                        
-                        // ✅ WAIT FOR USER TO ENTER CODE
-                        console.log(chalk.yellow(`⏳ Waiting for you to enter the code in WhatsApp...`));
-                        console.log(chalk.yellow(`📌 If it doesn't work, wait 5 minutes and restart the bot.`));
-                        console.log(``);
-                        
                     } catch (error) {
-                        console.log(chalk.red(`❌ Attempt ${attempt} failed: ${error.message}`));
-                        
-                        if (attempt < 3) {
-                            console.log(chalk.yellow(`🔄 Retrying in 10 seconds... (Attempt ${attempt + 1}/${MAX_RETRIES})`));
-                            setTimeout(() => requestPairing(attempt + 1), 10000);
-                        } else {
-                            console.log(chalk.red(`
-╔═══════════════════════════════════════╗
-║   ❌ PAIRING FAILED                  ║
-║   Please wait 5 minutes and restart  ║
-║   Or try using a different number    ║
-╚═══════════════════════════════════════╝
-                            `));
-                        }
+                        console.error(chalk.red('❌ Error getting pairing code:'), error);
                     }
-                };
-
-                // ✅ START PAIRING WITH RETRY
-                setTimeout(() => requestPairing(1), 5000);
+                }, 5000);
             }
         }
 
@@ -178,11 +136,12 @@ async function startBot() {
             console.log(chalk.green(`
 ╔═══════════════════════════════════════╗
 ║   ✅ BOT IS ONLINE!                  ║
-║   👑 ${config.botName}                ║
+║   👑 ${config.botName || settings.botName} ║
 ║   📱 Connected as: ${sock.user.id}    ║
 ╚═══════════════════════════════════════╝
             `));
             
+            // Send welcome message to owner
             try {
                 const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
                 await sock.sendMessage(botNumber, {
@@ -193,19 +152,19 @@ async function startBot() {
 
 ✅ *BOT IS ONLINE!*
 
-📌 *Bot Name:* ${config.botName}
-👤 *Owner:* ${config.botOwner}
-⚡ *Prefix:* ${config.prefix}
+📌 *Bot Name:* ${config.botName || settings.botName}
+👤 *Owner:* ${config.botOwner || settings.botOwner}
+⚡ *Prefix:* ${config.prefix || settings.prefix || '.'}
 🟢 *Status:* Connected!
 
-📌 *Commands:* Type ${config.prefix}menu to see all commands
+📌 *Commands:* Type ${config.prefix || '.'}menu to see all commands
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  📢 JOIN OUR CHANNEL         ┃
 ┃  👇 Click the button below    ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-${config.footer}`
+${config.footer || settings.footer}`
                 });
                 console.log(chalk.green('✅ Welcome message sent!'));
             } catch (e) {
@@ -213,12 +172,8 @@ ${config.footer}`
             }
         }
 
-        if (qr) console.log(chalk.yellow('📱 QR Code generated.'));
-        if (connection === 'connecting') console.log(chalk.yellow('🔄 Connecting...'));
-
         if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode || 
-                lastDisconnect?.error?.statusCode;
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
             if (statusCode === DisconnectReason.loggedOut) {
@@ -236,7 +191,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // MESSAGE HANDLER
+    // 📥 MESSAGE HANDLER
     // ==========================================
 
     sock.ev.on('messages.upsert', async (chatUpdate) => {
@@ -249,6 +204,7 @@ ${config.footer}`
             const isChannel = chatId.includes('@newsletter');
             if (isStatus || isChannel) return;
 
+            // Get text from message
             let text = '';
             if (mek.message.conversation) {
                 text = mek.message.conversation;
@@ -262,18 +218,23 @@ ${config.footer}`
 
             if (!text) return;
 
-            if (text.startsWith(config.prefix || '.')) {
+            const prefix = config.prefix || settings.prefix || '.';
+
+            if (text.startsWith(prefix)) {
                 const args = text.slice(1).trim().split(' ');
                 const commandName = args.shift().toLowerCase();
 
                 const sender = mek.key.participant || mek.key.remoteJid;
                 const senderNumber = sender ? sender.split('@')[0] : 'Unknown';
-                const isOwnerCheck = isOwner(sender);
-                const botMode = global.botMode || 'public';
+                const ownerNumber = config.ownerNumber || settings.ownerNumber || '254755660053';
+                const isOwner = sender === ownerNumber + '@s.whatsapp.net' || 
+                                sender === ownerNumber + '@c.us' ||
+                                senderNumber === ownerNumber;
+                const botMode = config.mode || settings.mode || 'public';
 
-                if (botMode === 'private' && !isOwnerCheck) {
+                if (botMode === 'private' && !isOwner) {
                     await sock.sendMessage(mek.key.remoteJid, {
-                        text: `🔒 *BOT IS IN PRIVATE MODE*\n\nOnly the bot owner can use commands.\n\n👑 Owner: ${config.botOwner}\n📱 Number: ${config.ownerNumber}`
+                        text: `🔒 *BOT IS IN PRIVATE MODE*\n\nOnly the bot owner can use commands.\n\n👑 Owner: ${config.botOwner || settings.botOwner}\n📱 Number: ${ownerNumber}`
                     });
                     return;
                 }
@@ -283,7 +244,7 @@ ${config.footer}`
                 if (global.commands && global.commands.has(commandName)) {
                     const command = global.commands.get(commandName);
                     try {
-                        await command.execute(sock, mek, args, mek.key.remoteJid, isOwnerCheck);
+                        await command.execute(sock, mek, args, mek.key.remoteJid, isOwner);
                         console.log(`✅ Executed: ${commandName}`);
                     } catch (error) {
                         console.error(`❌ Error executing ${commandName}:`, error);
@@ -293,7 +254,7 @@ ${config.footer}`
                     }
                 } else {
                     await sock.sendMessage(mek.key.remoteJid, { 
-                        text: `❌ Unknown command: ${text}\nType ${config.prefix}menu for available commands.`
+                        text: `❌ Unknown command: ${text}\nType ${prefix}menu for available commands.`
                     });
                 }
             }
@@ -303,7 +264,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // GROUP PARTICIPANT UPDATE
+    // 👥 GROUP PARTICIPANT UPDATE
     // ==========================================
 
     sock.ev.on('group-participants.update', async (update) => {
@@ -311,7 +272,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // ANTI-CALL
+    // 🚀 ANTI-CALL
     // ==========================================
 
     sock.ev.on('call', async (calls) => {
@@ -327,7 +288,7 @@ ${config.footer}`
     });
 
     // ==========================================
-    // WEB SERVER
+    // 🌐 WEB SERVER
     // ==========================================
 
     const app = express();
@@ -341,7 +302,7 @@ ${config.footer}`
 }
 
 // ==========================================
-// START
+// 🚀 START
 // ==========================================
 
 startBot();
