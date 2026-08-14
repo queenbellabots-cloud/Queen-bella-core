@@ -1,54 +1,33 @@
-/**
- * 👑 QUEEN BELLA MD - Alive Command
- */
-
-const settings = require('../settings');
-
+cat > /home/container/plugins/alive.js << 'EOF'
 module.exports = {
     name: 'alive',
-    aliases: ['status', 'check'],
+    aliases: ['status', 'online', 'ping'],
     category: 'main',
     description: 'Check if bot is alive',
     usage: '.alive',
-    react: '💚',
-    async execute(conn, mek, args, chatId, isOwner) {
-        try {
-            await conn.sendMessage(chatId, {
-                react: { text: '💚', key: mek.key }
-            });
-
-            const uptime = process.uptime();
-            const hours = Math.floor(uptime / 3600);
-            const minutes = Math.floor((uptime % 3600) / 60);
-            const seconds = Math.floor(uptime % 60);
-            const commands = global.commands?.size || 0;
-
-            await conn.sendMessage(chatId, {
-                text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃   👑 QUEEN BELLA MD V3    ┃
-┃   Created by Dev RODGERS   ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-💚 *QUEEN BELLA MD IS ALIVE!*
-
-✅ *Status:* Online
-⏰ *Uptime:* ${hours}h ${minutes}m ${seconds}s
-⚡ *Prefix:* ${settings.prefix}
-📊 *Commands:* ${commands}
-
+    async execute(sock, mek, args, chatId, isOwner) {
+        const uptime = process.uptime();
+        const days = Math.floor(uptime / 86400);
+        const hours = Math.floor((uptime % 86400) / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const seconds = Math.floor(uptime % 60);
+        
+        const uptimeStr = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        
+        const message = `
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  📢 JOIN OUR CHANNEL         ┃
-┃  👇 Click the button below    ┃
+┃      ✅ BOT IS ALIVE!          ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-${settings.footer}`
-            });
+📊 *STATUS INFO*
+⏰ Uptime: ${uptimeStr}
+📱 Status: Online
+👑 Bot: QUEEN BELLA MD V3
+⚡ Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB
 
-        } catch (error) {
-            console.error('Error in alive:', error);
-            await conn.sendMessage(chatId, { 
-                text: '❌ Error in alive command.'
-            });
-        }
+💫 *Bot is running smoothly!*
+        `;
+        await sock.sendMessage(chatId, { text: message });
     }
 };
+EOF
