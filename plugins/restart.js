@@ -1,54 +1,32 @@
-/**
- * 👑 QUEEN BELLA MD V3 - Restart Command
- * Restarts the bot
- * ✅ EVERYONE CAN USE
- */
-
-const settings = require('../settings');
-
+cat > /home/container/plugins/restart.js << 'EOF'
 module.exports = {
     name: 'restart',
-    aliases: ['reboot', 'reload'],
-    category: 'main',
-    description: 'Restart the bot',
+    aliases: ['reboot'],
+    category: 'owner',
+    description: 'Restart the bot (Owner only)',
     usage: '.restart',
-    react: '🔄',
-    async execute(conn, mek, args, chatId, isOwner) {
-        try {
-            await conn.sendMessage(chatId, {
-                react: { text: '🔄', key: mek.key }
+    async execute(sock, mek, args, chatId, isOwner) {
+        // Check if user is owner
+        const ownerNumber = '254755660053';
+        const sender = mek.key.participant || mek.key.remoteJid;
+        const senderNumber = sender ? sender.split('@')[0] : '';
+        
+        if (senderNumber !== ownerNumber) {
+            await sock.sendMessage(chatId, {
+                text: '❌ *Access Denied!*\nThis command is only for the bot owner.'
             });
-
-            // ✅ REMOVED OWNER CHECK - EVERYONE CAN RESTART THEIR OWN BOT!
-
-            await conn.sendMessage(chatId, {
-                text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃   👑 QUEEN BELLA MD V3    ┃
-┃   Created by Dev RODGERS   ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-🔄 *RESTARTING BOT...*
-
-✅ Bot is restarting.
-⏳ Please wait a moment...
-
-${settings.footer}`
-            });
-
-            // Wait for message to send
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Restart the bot
-            process.exit(0);
-
-        } catch (error) {
-            console.error('Restart error:', error);
-            await conn.sendMessage(chatId, {
-                react: { text: '❌', key: mek.key }
-            });
-            await conn.sendMessage(chatId, {
-                text: `❌ *Restart failed!*\n\nError: ${error.message}`
-            });
+            return;
         }
+
+        await sock.sendMessage(chatId, {
+            text: '🔄 *Restarting Bot...*\n\nPlease wait while the bot restarts.\n⏱️ This may take a few seconds.'
+        });
+
+        console.log('🔄 Bot restart initiated by owner...');
+        
+        setTimeout(() => {
+            process.exit(0);
+        }, 3000);
     }
 };
+EOF
