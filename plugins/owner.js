@@ -1,49 +1,35 @@
-/**
- * 👑 QUEEN BELLA MD - Owner Command
- */
-
-const settings = require('../settings');
-
+cat > /home/container/plugins/owner.js << 'EOF'
 module.exports = {
     name: 'owner',
-    aliases: ['creator', 'developer', 'dev'],
+    aliases: ['creator', 'dev', 'developer'],
     category: 'main',
-    description: 'Show owner information',
+    description: 'Show bot owner information',
     usage: '.owner',
-    react: '👑',
-    async execute(conn, mek, args, chatId, isOwner) {
-        try {
-            await conn.sendMessage(chatId, {
-                react: { text: '👑', key: mek.key }
-            });
-
-            await conn.sendMessage(chatId, {
-                text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃   👑 QUEEN BELLA MD V3    ┃
-┃   Created by Dev RODGERS   ┃
+    async execute(sock, mek, args, chatId, isOwner) {
+        const message = `
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃      👑 BOT OWNER INFO        ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-👑 *OWNER INFO*
-
-👤 *Name:* ${settings.botOwner}
-👨‍💻 *Developer:* ${settings.author || 'Dev RODGERS'}
-📱 *Number:* ${settings.ownerNumber}
-📢 *Channel:* ${settings.channelName}
-🔗 *Link:* ${settings.channelLink}
+👤 *NAME:* RODGERS
+📱 *NUMBER:* 254755660053
+🤖 *BOT:* QUEEN BELLA MD V3
+🔒 *STATUS:* Online
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  📢 JOIN OUR CHANNEL         ┃
-┃  👇 Click the button below    ┃
+┃      📱 CONTACT INFO          ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-${settings.footer}`
-            });
+📞 WhatsApp: wa.me/254755660053
+📢 Channel: https://whatsapp.com/channel/0029VbCwZHACXC3PNHgtMT31
+📧 Email: bellabots@gmail.com
 
-        } catch (error) {
-            console.error('Error in owner:', error);
-            await conn.sendMessage(chatId, { 
-                text: '❌ Error in owner command.'
-            });
-        }
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃      © QUEEN BELLA MD         ┃
+┃   A BELLA BOTS PRODUCTIONS    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+        `;
+        await sock.sendMessage(chatId, { text: message });
     }
 };
+EOF
