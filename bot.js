@@ -3,10 +3,6 @@
  * 🔒 READS COMMANDS FROM plugins/ FOLDER
  */
 
-// ==========================================
-// 📦 LOAD CONFIG & DEPENDENCIES
-// ==========================================
-
 const config = require('./config.js');
 const settings = require('./settings.js');
 
@@ -16,10 +12,6 @@ const chalk = require('chalk');
 const express = require('express');
 const path = require('path');
 const pino = require('pino');
-
-// ==========================================
-// 📂 COMMAND LOADER - READS FROM plugins/
-// ==========================================
 
 global.commands = new Map();
 
@@ -57,10 +49,6 @@ function loadCommands() {
     console.log(chalk.green(`✅ Loaded ${global.commands.size} commands successfully.`));
 }
 
-// ==========================================
-# 🤖 MAIN BOT FUNCTION
-// ==========================================
-
 async function startBot() {
     console.log(chalk.cyan(`
 ╔═══════════════════════════════════════╗
@@ -70,7 +58,6 @@ async function startBot() {
 ╚═══════════════════════════════════════╝
     `));
 
-    // ✅ LOAD ALL COMMANDS FROM plugins/
     loadCommands();
 
     const sessionFolder = './session';
@@ -88,16 +75,9 @@ async function startBot() {
         syncFullHistory: false,
         downloadHistory: false,
         logger: pino({ level: 'silent' }),
-        getMessage: async (key) => {
-            return "";
-        }
     });
 
     sock.ev.on('creds.update', saveCreds);
-
-    // ==========================================
-    // 🔑 PAIRING CODE GENERATION
-    // ==========================================
 
     let pairingDone = false;
 
@@ -141,7 +121,6 @@ async function startBot() {
 ╚═══════════════════════════════════════╝
             `));
             
-            // Send welcome message to owner
             try {
                 const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
                 await sock.sendMessage(botNumber, {
@@ -190,10 +169,7 @@ ${config.footer || settings.footer}`
         }
     });
 
-    // ==========================================
-    // 📥 MESSAGE HANDLER
-    // ==========================================
-
+    // MESSAGE HANDLER
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -204,7 +180,6 @@ ${config.footer || settings.footer}`
             const isChannel = chatId.includes('@newsletter');
             if (isStatus || isChannel) return;
 
-            // Get text from message
             let text = '';
             if (mek.message.conversation) {
                 text = mek.message.conversation;
@@ -263,17 +238,9 @@ ${config.footer || settings.footer}`
         }
     });
 
-    // ==========================================
-    // 👥 GROUP PARTICIPANT UPDATE
-    // ==========================================
-
     sock.ev.on('group-participants.update', async (update) => {
         console.log('👥 Group update:', update);
     });
-
-    // ==========================================
-    // 🚀 ANTI-CALL
-    // ==========================================
 
     sock.ev.on('call', async (calls) => {
         for (const call of calls) {
@@ -287,10 +254,6 @@ ${config.footer || settings.footer}`
         }
     });
 
-    // ==========================================
-    // 🌐 WEB SERVER
-    // ==========================================
-
     const app = express();
     const PORT = process.env.PORT || 3000;
     app.get('/', (req, res) => {
@@ -300,9 +263,5 @@ ${config.footer || settings.footer}`
         console.log(`🌐 Web server running on port ${PORT}`);
     });
 }
-
-// ==========================================
-// 🚀 START
-// ==========================================
 
 startBot();
