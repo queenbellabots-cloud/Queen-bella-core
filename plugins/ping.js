@@ -1,56 +1,29 @@
-/**
- * 👑 QUEEN BELLA MD - Ping Command
- */
-
-const settings = require('../settings');
-
+cat > /home/container/plugins/ping.js << 'EOF'
 module.exports = {
     name: 'ping',
-    aliases: ['p'],
+    aliases: ['p', 'latency'],
     category: 'main',
-    description: 'Check bot latency',
+    description: 'Check bot response time',
     usage: '.ping',
-    react: '🏓',
-    async execute(conn, mek, args, chatId, isOwner) {
-        try {
-            await conn.sendMessage(chatId, {
-                react: { text: '🏓', key: mek.key }
-            });
-
-            const start = Date.now();
-            await conn.sendMessage(chatId, { text: '⏳ Checking...' });
-            const latency = Date.now() - start;
-
-            const uptime = process.uptime();
-            const hours = Math.floor(uptime / 3600);
-            const minutes = Math.floor((uptime % 3600) / 60);
-            const seconds = Math.floor(uptime % 60);
-
-            await conn.sendMessage(chatId, {
-                text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃   👑 QUEEN BELLA MD V3    ┃
-┃   Created by Dev RODGERS   ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-🏓 *PONG!*
-
-📡 *Latency:* ${latency}ms
-⏰ *Uptime:* ${hours}h ${minutes}m ${seconds}s
-🟢 *Status:* Online ✅
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  📢 JOIN OUR CHANNEL         ┃
-┃  👇 Click the button below    ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-${settings.footer}`
-            });
-
-        } catch (error) {
-            console.error('Error in ping:', error);
-            await conn.sendMessage(chatId, { 
-                text: '❌ Error in ping command.'
-            });
+    async execute(sock, mek, args, chatId, isOwner) {
+        const start = Date.now();
+        await sock.sendMessage(chatId, { text: '🏓 Pinging...' });
+        const end = Date.now();
+        const latency = end - start;
+        
+        let emoji = '🟢';
+        let status = 'Excellent';
+        if (latency > 1000) {
+            emoji = '🔴';
+            status = 'Poor';
+        } else if (latency > 500) {
+            emoji = '🟡';
+            status = 'Average';
         }
+        
+        await sock.sendMessage(chatId, { 
+            text: `🏓 *PONG!*\n\n${emoji} *Status:* ${status}\n⏱️ *Latency:* ${latency}ms\n📱 *Bot:* QUEEN BELLA MD V3\n\n💫 *Bot is running smoothly!*`
+        });
     }
 };
+EOF
