@@ -1,7 +1,5 @@
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
- * 🔒 READS COMMANDS FROM plugins/ FOLDER
- * ✅ SETTINGS MERGED INTO BOT
  */
 
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
@@ -11,10 +9,7 @@ const express = require('express');
 const path = require('path');
 const pino = require('pino');
 
-// ==========================================
-// 📝 SETTINGS - MERGED HERE (HIDDEN)
-// ==========================================
-
+// Settings merged here
 const settings = {
     prefix: ".",
     botName: "QUEEN BELLA MD V3",
@@ -28,45 +23,30 @@ const settings = {
     footer: "© A BELLA BOTS PRODUCTIONS"
 };
 
-// Load user config from public repo
+// Load user config
 let config = {};
 try {
     config = require('./config.js');
-    console.log(chalk.green('✅ Config loaded from user!'));
-} catch (e) {
-    console.log(chalk.yellow('⚠️ Using default settings'));
-}
+} catch (e) {}
 
-// Merge config with settings
 const mergedConfig = { ...settings, ...config };
 
-// ==========================================
-// 📂 COMMAND LOADER
-// ==========================================
-
+// Commands
 global.commands = new Map();
 
 function loadCommands() {
-    const commandsDir = path.join(process.cwd(), 'plugins');
-    
+    const commandsDir = './plugins';
     if (!fs.existsSync(commandsDir)) {
         fs.mkdirSync(commandsDir, { recursive: true });
-        console.log(chalk.yellow('📁 Created plugins folder'));
     }
-
-    const files = fs.readdirSync(commandsDir).filter(file => file.endsWith('.js'));
+    const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'));
     console.log(chalk.red.bold(`\n📦 Loading QUEEN BELLA MD Commands...`));
-    global.commands.clear();
-
     for (const file of files) {
         try {
-            const filePath = path.join(commandsDir, file);
-            delete require.cache[require.resolve(filePath)];
-            const command = require(filePath);
-            
+            const command = require(`./plugins/${file}`);
             if (command.name) {
                 global.commands.set(command.name.toLowerCase(), command);
-                if (command.aliases && Array.isArray(command.aliases)) {
+                if (command.aliases) {
                     command.aliases.forEach(alias => {
                         global.commands.set(alias.toLowerCase(), command);
                     });
@@ -77,13 +57,10 @@ function loadCommands() {
             console.error(chalk.red(`❌ Failed to load ${file}:`), error.message);
         }
     }
-    console.log(chalk.green(`✅ Loaded ${global.commands.size} commands successfully.`));
+    console.log(chalk.green(`✅ Loaded ${global.commands.size} commands.`));
 }
 
-// ==========================================
-# 🤖 MAIN BOT FUNCTION
-// ==========================================
-
+// Main bot
 async function startBot() {
     console.log(chalk.cyan(`
 ╔═══════════════════════════════════════╗
@@ -123,23 +100,23 @@ async function startBot() {
             if (connection === 'connecting' || connection === 'open') {
                 pairingDone = true;
                 let phoneNumber = mergedConfig.ownerNumber || '254755660053';
-                phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
+                phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
 
-                console.log(chalk.green(`📱 Using phone number: ${phoneNumber}`));
+                console.log(chalk.green(`📱 Using number: ${phoneNumber}`));
                 console.log(chalk.yellow(`⏳ Requesting pairing code...`));
 
                 setTimeout(async () => {
                     try {
                         let code = await sock.requestPairingCode(phoneNumber);
-                        code = code?.match(/.{1,4}/g)?.join("-") || code;
-                        console.log(``);
-                        console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: `)), chalk.black(chalk.white(code)));
-                        console.log(``);
+                        code = code?.match(/.{1,4}/g)?.join('-') || code;
+                        console.log('');
+                        console.log(chalk.black(chalk.bgGreen(`✅ PAIRING CODE: ${code}`)));
+                        console.log('');
                         console.log(chalk.yellow(`📱 Enter this code in WhatsApp Web/Linked Devices`));
                         console.log(chalk.cyan(`⏰ Code expires in 10 minutes`));
-                        console.log(``);
-                        console.log(chalk.green(`🔄 After entering the code, the bot will connect automatically!`));
-                        console.log(``);
+                        console.log('');
+                        console.log(chalk.green(`🔄 Bot will connect automatically after pairing!`));
+                        console.log('');
                     } catch (error) {
                         console.error(chalk.red('❌ Error getting pairing code:'), error);
                     }
@@ -155,48 +132,17 @@ async function startBot() {
 ║   📱 Connected as: ${sock.user.id}    ║
 ╚═══════════════════════════════════════╝
             `));
-            
-            try {
-                const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                await sock.sendMessage(botNumber, {
-                    text: `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃   👑 QUEEN BELLA MD V3           ┃
-┃   Created by Dev RODGERS         ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-✅ *BOT IS ONLINE!*
-
-📌 *Bot Name:* ${mergedConfig.botName}
-👤 *Owner:* ${mergedConfig.botOwner}
-⚡ *Prefix:* ${mergedConfig.prefix}
-🟢 *Status:* Connected!
-
-📌 *Commands:* Type ${mergedConfig.prefix}menu to see all commands
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  📢 JOIN OUR CHANNEL         ┃
-┃  👇 Click the button below    ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-${mergedConfig.footer}`
-                });
-                console.log(chalk.green('✅ Welcome message sent!'));
-            } catch (e) {
-                console.log('Could not send welcome message:', e.message);
-            }
         }
 
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
             if (statusCode === DisconnectReason.loggedOut) {
                 try {
                     fs.rmSync(sessionFolder, { recursive: true, force: true });
-                    console.log(chalk.yellow('Session cleared. Please re-authenticate.'));
+                    console.log(chalk.yellow('Session cleared.'));
                 } catch (e) {}
             }
-
             if (shouldReconnect) {
                 console.log(chalk.yellow('🔄 Reconnecting...'));
                 setTimeout(startBot, 3000);
@@ -204,10 +150,7 @@ ${mergedConfig.footer}`
         }
     });
 
-    // ==========================================
-    // 📥 MESSAGE HANDLER
-    // ==========================================
-
+    // Message handler
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -219,67 +162,52 @@ ${mergedConfig.footer}`
             if (isStatus || isChannel) return;
 
             let text = '';
-            if (mek.message.conversation) {
-                text = mek.message.conversation;
-            } else if (mek.message.extendedTextMessage) {
-                text = mek.message.extendedTextMessage.text;
-            } else if (mek.message.imageMessage) {
-                text = mek.message.imageMessage.caption || '';
-            } else if (mek.message.videoMessage) {
-                text = mek.message.videoMessage.caption || '';
-            }
-
+            if (mek.message.conversation) text = mek.message.conversation;
+            else if (mek.message.extendedTextMessage) text = mek.message.extendedTextMessage.text;
+            else if (mek.message.imageMessage) text = mek.message.imageMessage.caption || '';
+            else if (mek.message.videoMessage) text = mek.message.videoMessage.caption || '';
             if (!text) return;
 
             const prefix = mergedConfig.prefix || '.';
+            if (!text.startsWith(prefix)) return;
 
-            if (text.startsWith(prefix)) {
-                const args = text.slice(1).trim().split(' ');
-                const commandName = args.shift().toLowerCase();
+            const args = text.slice(1).trim().split(' ');
+            const commandName = args.shift().toLowerCase();
 
-                const sender = mek.key.participant || mek.key.remoteJid;
-                const senderNumber = sender ? sender.split('@')[0] : 'Unknown';
-                const ownerNumber = mergedConfig.ownerNumber || '254755660053';
-                const isOwner = sender === ownerNumber + '@s.whatsapp.net' || 
-                                sender === ownerNumber + '@c.us' ||
-                                senderNumber === ownerNumber;
-                const botMode = mergedConfig.mode || 'public';
+            const sender = mek.key.participant || mek.key.remoteJid;
+            const senderNumber = sender ? sender.split('@')[0] : '';
+            const ownerNumber = mergedConfig.ownerNumber || '254755660053';
+            const isOwner = sender === ownerNumber + '@s.whatsapp.net' || 
+                            sender === ownerNumber + '@c.us' ||
+                            senderNumber === ownerNumber;
 
-                if (botMode === 'private' && !isOwner) {
-                    await sock.sendMessage(mek.key.remoteJid, {
-                        text: `🔒 *BOT IS IN PRIVATE MODE*\n\nOnly the bot owner can use commands.\n\n👑 Owner: ${mergedConfig.botOwner}\n📱 Number: ${ownerNumber}`
-                    });
-                    return;
+            if (mergedConfig.mode === 'private' && !isOwner) {
+                await sock.sendMessage(chatId, {
+                    text: `🔒 Private mode. Only owner can use commands.`
+                });
+                return;
+            }
+
+            if (global.commands && global.commands.has(commandName)) {
+                const command = global.commands.get(commandName);
+                try {
+                    await command.execute(sock, mek, args, chatId, isOwner);
+                    console.log(`✅ Executed: ${commandName}`);
+                } catch (error) {
+                    console.error(`❌ Error:`, error);
+                    await sock.sendMessage(chatId, { text: '❌ Error executing command!' });
                 }
-
-                console.log(`📥 Command: ${commandName} from ${senderNumber}`);
-
-                if (global.commands && global.commands.has(commandName)) {
-                    const command = global.commands.get(commandName);
-                    try {
-                        await command.execute(sock, mek, args, mek.key.remoteJid, isOwner);
-                        console.log(`✅ Executed: ${commandName}`);
-                    } catch (error) {
-                        console.error(`❌ Error executing ${commandName}:`, error);
-                        await sock.sendMessage(mek.key.remoteJid, { 
-                            text: '❌ Error executing command!'
-                        });
-                    }
-                } else {
-                    await sock.sendMessage(mek.key.remoteJid, { 
-                        text: `❌ Unknown command: ${text}\nType ${prefix}menu for available commands.`
-                    });
-                }
+            } else {
+                await sock.sendMessage(chatId, { 
+                    text: `❌ Unknown command: ${text}\nType ${prefix}menu` 
+                });
             }
         } catch (error) {
             console.error('Message error:', error);
         }
     });
 
-    sock.ev.on('group-participants.update', async (update) => {
-        console.log('👥 Group update:', update);
-    });
-
+    // Anti-call
     sock.ev.on('call', async (calls) => {
         for (const call of calls) {
             if (!call.from) continue;
@@ -292,6 +220,7 @@ ${mergedConfig.footer}`
         }
     });
 
+    // Web server
     const app = express();
     const PORT = process.env.PORT || 3000;
     app.get('/', (req, res) => {
