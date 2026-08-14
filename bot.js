@@ -1,3 +1,4 @@
+cat > /home/container/bot.js << 'EOF'
 /**
  * 👑 QUEEN BELLA MD V3 - CORE BOT
  */
@@ -9,7 +10,7 @@ const express = require('express');
 const path = require('path');
 const pino = require('pino');
 
-// Settings merged here
+// Settings
 const settings = {
     prefix: ".",
     botName: "QUEEN BELLA MD V3",
@@ -27,7 +28,9 @@ const settings = {
 let config = {};
 try {
     config = require('./config.js');
-} catch (e) {}
+} catch (e) {
+    console.log('No config.js found, using defaults');
+}
 
 const mergedConfig = { ...settings, ...config };
 
@@ -35,16 +38,33 @@ const mergedConfig = { ...settings, ...config };
 global.commands = new Map();
 
 function loadCommands() {
-    const commandsDir = './plugins';
+    const commandsDir = path.join(__dirname, 'plugins');
+    console.log(chalk.yellow(`📂 Looking for commands in: ${commandsDir}`));
+    
     if (!fs.existsSync(commandsDir)) {
+        console.log(chalk.red('❌ Plugins folder not found! Creating...'));
         fs.mkdirSync(commandsDir, { recursive: true });
+        return;
     }
+    
     const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'));
+    console.log(chalk.cyan(`📦 Found ${files.length} command files`));
+    
+    if (files.length === 0) {
+        console.log(chalk.red('❌ No command files found in plugins folder!'));
+        return;
+    }
+    
     console.log(chalk.red.bold(`\n📦 Loading QUEEN BELLA MD Commands...`));
+    let loadedCount = 0;
+    
     for (const file of files) {
         try {
-            const command = require(`./plugins/${file}`);
-            if (command.name) {
+            const filePath = path.join(commandsDir, file);
+            console.log(chalk.yellow(`🔍 Loading: ${file}`));
+            const command = require(filePath);
+            
+            if (command && command.name) {
                 global.commands.set(command.name.toLowerCase(), command);
                 if (command.aliases) {
                     command.aliases.forEach(alias => {
@@ -52,12 +72,17 @@ function loadCommands() {
                     });
                 }
                 console.log(chalk.green(`✅ Loaded: ${command.name}`));
+                loadedCount++;
+            } else {
+                console.log(chalk.red(`❌ ${file} has no 'name' property`));
             }
         } catch (error) {
             console.error(chalk.red(`❌ Failed to load ${file}:`), error.message);
+            console.error(chalk.red('Stack:'), error.stack);
         }
     }
-    console.log(chalk.green(`✅ Loaded ${global.commands.size} commands.`));
+    console.log(chalk.green(`✅ Loaded ${loadedCount} commands.`));
+    console.log(chalk.cyan(`📊 Total commands in Map: ${global.commands.size}`));
 }
 
 // Main bot
@@ -132,6 +157,13 @@ async function startBot() {
 ║   📱 Connected as: ${sock.user.id}    ║
 ╚═══════════════════════════════════════╝
             `));
+            
+            // Send welcome message
+            try {
+                await sock.sendMessage(sock.user.id, {
+                    text: `✅ *Bot Connected Successfully!*\n\n👑 ${mergedConfig.botName}\n📱 Online and ready!\n\nType *${mergedConfig.prefix}menu* to see commands.`
+                });
+            } catch (e) {}
         }
 
         if (connection === 'close') {
@@ -192,14 +224,16 @@ async function startBot() {
                 const command = global.commands.get(commandName);
                 try {
                     await command.execute(sock, mek, args, chatId, isOwner);
-                    console.log(`✅ Executed: ${commandName}`);
+                    console.log(chalk.green(`✅ Executed: ${commandName}`));
                 } catch (error) {
-                    console.error(`❌ Error:`, error);
-                    await sock.sendMessage(chatId, { text: '❌ Error executing command!' });
+                    console.error(chalk.red(`❌ Error executing ${commandName}:`), error);
+                    await sock.sendMessage(chatId, { 
+                        text: '❌ Error executing command!\nPlease try again later.' 
+                    });
                 }
             } else {
                 await sock.sendMessage(chatId, { 
-                    text: `❌ Unknown command: ${text}\nType ${prefix}menu` 
+                    text: `❌ Unknown command: ${text}\nType ${prefix}menu for available commands.` 
                 });
             }
         } catch (error) {
@@ -227,8 +261,9 @@ async function startBot() {
         res.send('👑 QUEEN BELLA MD - WhatsApp Bot is Online!');
     });
     app.listen(PORT, () => {
-        console.log(`🌐 Web server running on port ${PORT}`);
+        console.log(chalk.green(`🌐 Web server running on port ${PORT}`));
     });
 }
 
 startBot().catch(console.error);
+EOF
